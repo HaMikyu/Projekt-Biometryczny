@@ -1,0 +1,6 @@
+Michał Dąbrowski, Dominik Zabielski - detekcja makroskładników jedzenia na podstawie zdjęcia
+Grupa: Mateusz Prokopiuk Wojciech Gosiewski
+Temat: Analiza podatności i metody detekcji fałszerstw linii papilarnych
+Bartosz Siemaszkiewicz - Fałszowanie odcisków palców, ja solo robie
+Skład grupy: Adam Rogowski, Szymon Sawoń
+Temat: Wykrywanie wideo modyfikowanych przez AI

@@ -1,0 +1,18 @@
+Lp.	
+Nazwisko 
+Imiona
+Stan
+1	Dąbrowski	Michał	aktywny
+2	Gniazdowski	Kamil	aktywny
+3	Gosiewski	Wojciech Jan	aktywny
+4	Hącia	Kacper	aktywny
+5	Jaromski	Jakub	aktywny
+6	Murawski	Jakub	aktywny
+7	Niechciałkowski	Michał	aktywny
+8	Prokopiuk	Mateusz	aktywny
+9	Rogowski	Adam	aktywny
+10	Sawoń	Szymon	aktywny
+11	Siemaszkiewicz	Bartosz	aktywny
+12	Wasiluk	Gabriel	aktywny
+13	Zabielski	Dominik	aktywny
+14	Żochowski	Hubert	aktywny

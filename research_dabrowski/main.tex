@@ -1,0 +1,399 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{csquotes}
+\usepackage{caption}
+\usepackage{float}
+
+\geometry{margin=2.4cm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  citecolor=blue!50!black,
+  urlcolor=blue!60!black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small PROseminarium --- research}
+\fancyhead[R]{\small Detekcja makroskładników ze zdjęcia}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\title{%
+  Detekcja makroskładników jedzenia na podstawie zdjęcia:\\
+  przegląd rozwiązań, modeli i stanu badań%
+}
+\author{%
+  Michał Dąbrowski \and Dominik Zabielski\\[0.4em]
+  \normalsize PROseminarium --- research wstępny%
+}
+\date{październik 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Dokument stanowi przegląd aktualnego stanu wiedzy i narzędzi w obszarze
+automatycznego szacowania wartości odżywczych (kalorie oraz makroskładniki:
+białko, tłuszcz, węglowodany) na podstawie fotografii posiłku.
+Omówiono główne sformułowania problemu, kluczowe zbiory danych
+(w szczególności Nutrition5k), klasyczne i współczesne architekturę
+(CNN, Vision Transformer, multimodalne VLM), wybrane modele dostępne na
+Hugging Face oraz rozwiązania komercyjne (aplikacje mobilne).
+Na końcu wskazano praktyczne ścieżki realizacji projektu proseminaryjnego.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%% =====================================================================
+\section{Wprowadzenie i motywacja}
+%% =====================================================================
+
+Ręczne logowanie posiłków w aplikacjach dietetycznych jest czasochłonne
+i podatne na błędy. Alternatywą jest \emph{image-based dietary assessment}:
+system, który na podstawie zdjęcia talerza szacuje masę porcji oraz
+zawartość kalorii i makroskładników.
+
+Problem jest trudny z kilku powodów:
+\begin{itemize}[leftmargin=*]
+  \item z jednego 2D zdjęcia nie da się jednoznacznie odtworzyć objętości
+        (głębia, okluzja, perspektywa);
+  \item potrawy są złożone (wiele składników, sosy, warstwy);
+  \item ta sama klasa jedzenia ma bardzo różną gęstość kaloryczną
+        (np.\ sałatka vs.\ orzechy);
+  \item bazy żywieniowe różnią się między krajami (USDA, krajowe FCDB).
+\end{itemize}
+
+Mimo to dziedzina dynamicznie się rozwija: od klasycznej klasyfikacji
+Food-101, przez regresję makro na Nutrition5k (Google, CVPR~2021),
+po modele multimodalne (VLM) z dostępem do baz USDA / FNDDS.
+
+%% =====================================================================
+\section{Sformułowanie problemu}
+%% =====================================================================
+
+W praktyce stosowane są trzy główne pipeline'y.
+
+\subsection{Podejście A --- klasyfikacja + baza odżywcza}
+\begin{enumerate}[leftmargin=*]
+  \item Rozpoznaj klasę potrawy / składniki (klasyfikacja lub detekcja).
+  \item Oszacuj porcję (heurystyka, referencyjny obiekt, głębokość).
+  \item Zmapuj wynik do bazy (USDA FoodData Central, Open Food Facts itp.).
+\end{enumerate}
+Zaleta: interpretowalność. Wada: błąd kumuluje się na każdym etapie;
+słaba generalizacja na dania mieszane.
+
+\subsection{Podejście B --- bezpośrednia regresja makro}
+Sieć (CNN / ViT) dostaje obraz i przewiduje wektor
+\[
+  \hat{y} = (\mathrm{kcal},\; m,\; \mathrm{protein},\; \mathrm{fat},\; \mathrm{carbs}).
+\]
+(odpowiednio: kalorie, masa, białko, tłuszcz, węglowodany).
+To dominujące podejście naukowe na Nutrition5k.
+Zaleta: prosty koniec-do-końca trening. Wada: słabsza interpretowalność;
+trudniej przenieść model na inną kuchnię / bazę.
+
+\subsection{Podejście C --- multimodalne VLM + RAG / baza}
+Model wizyjno-językowy opisuje składniki i gramy, a wartości odżywcze
+pobierane są z autorytatywnej bazy (np.\ DietAI24 + FNDDS).
+Zaleta: szerszy zakres składników odżywczych, lepsza elastyczność.
+Wada: koszt inferencji, ryzyko halucynacji bez RAG.
+
+\textbf{Rekomendacja dla projektu:} zacząć od B (regresja na Nutrition5k),
+opcjonalnie dodać A (klasyfikacja Food-101) jako baseline porównawczy;
+C traktować jako wariant zaawansowany / demonstracyjny.
+
+%% =====================================================================
+\section{Kluczowe zbiory danych}
+%% =====================================================================
+
+\begin{table}[H]
+\centering
+\caption{Wybrane zbiory istotne dla tematu.}
+\label{tab:datasets}
+\begin{tabular}{@{}llp{6.2cm}@{}}
+\toprule
+\textbf{Zbiór} & \textbf{Skala} & \textbf{Co daje} \\
+\midrule
+Nutrition5k & $\sim$5006 dań & RGB(+D), wideo, masa, kcal, makro, składniki (USDA) \\
+Food-101 & 101 klas $\times$ 1000 & klasyfikacja potraw (bez dokładnych makro) \\
+FoodSeg103 & segmentacja & maski składników (pomoc przy porcjach) \\
+NutritionVerse & syntetyczne + real & multitask regresja makro \\
+Open Food Facts & produkty opakowane & etykiety / kody kreskowe (nie talerz) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Nutrition5k (Google Research, CVPR 2021)}
+Najważniejszy benchmark do bezpośredniej estymacji makro:
+\begin{itemize}[leftmargin=*]
+  \item $\sim$5000 prawdziwych dań z kantyn Google;
+  \item $>250$ składników, średnio $\sim$5{,}7 składnika na talerz;
+  \item etykiety: całkowita masa, kalorie, tłuszcz, węglowodany, białko
+        oraz rozbicie per-składnik;
+  \item dla $\sim$3500 dań dostępne obrazy RGB-D z góry (Intel RealSense);
+  \item oficjalny split train/test ($\sim$90/10).
+\end{itemize}
+Źródło: \url{https://github.com/google-research-datasets/Nutrition5k}.
+Na Hugging Face istnieją przetworzone warianty, m.in.\
+\texttt{ai5labsOfficial/nutrition5k}, \texttt{arunapb/nutrition5k-foodseg103}.
+
+\textbf{Uwaga praktyczna:} pełny zbiór jest duży ($\sim$180\,GB).
+Do eksperymentów studenckich wystarczy subset klatek overhead RGB
++ metadane CSV.
+
+%% =====================================================================
+\section{Architektury i podejścia naukowe (stan 2024--2026)}
+%% =====================================================================
+
+\subsection{Baseline Nutrition5k}
+Oryginalna praca Thames i~in.\ (CVPR~2021) pokazała, że regresja z obrazu
+może przewyższać szacunki profesjonalnych dietetyków na tym zbiorze.
+Dodanie głębokości (RGB-D) poprawia estymację masy/porcji.
+
+\subsection{CNN i Vision Transformers}
+Benchmarki 2025 (m.in.\ analiza na Nutrition5k z różnymi FCDB)
+wskazują, że:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{ResNet-101} dobrze radzi sobie z masą i energią;
+  \item \textbf{ViT-B/16} często wygrywa na białku i węglowodanach;
+  \item InceptionV3 (historyczny baseline) jest już wyraźnie słabszy.
+\end{itemize}
+Typowe błędy (MAPE, rząd wielkości): masa $\sim$20--23\%,
+energia $\sim$26--29\%, makro $\sim$30--50\% --- zależnie od curation danych.
+Korekta mas składników w etykietach mocno poprawia metryki (nawet 6--42\%).
+
+\textbf{NutritionVerse-Direct} (2024): ViT + wspólne warstwy FC + 5 głowic
+regresyjnych; istotna poprawa względem Inception-ResNet.
+
+\textbf{Swin Transformer + EfficientNet + FPN} (Frontiers in Nutrition, 2024):
+Top-1 $\sim$79{,}5\%, MAPE kalorii $\sim$14{,}7\% na Nutrition5k.
+
+\textbf{Cross-ViT multi-scale} (2026): raportowane MAE $\sim$28\,kcal
+oraz $\sim$6/5/10\,g dla białka/tłuszczu/węglowodanów (tylko RGB).
+
+\subsection{Segmentacja + open-vocabulary}
+Podejścia łączące segmentację jedzenia (oddzielenie tła) z Transformerem
+i/lub głębokością osiągają średnie PMAE rzędu $\sim$17\% na Nutrition5k.
+Analizy attention pokazują, że tło bywa ważne dla kalorii/masy/węglowodanów,
+a mniej dla białka i tłuszczu.
+
+\subsection{Depth-from-RGB}
+Gdy nie ma czujnika głębi, stosuje się modele estymacji depth
+(np.\ Depth Anything) i dokłada kanał głębokości --- przykład:
+NutriIngredientNet / DPF-Nutrition.
+
+\subsection{Multimodalne LLM / VLM + RAG}
+\textbf{DietAI24} (Communications Medicine, 2025): MLLM + Retrieval-Augmented
+Generation z bazą FNDDS; szacuje dziesiątki składników odżywczych,
+nie tylko makro. Silnie redukuje MAE względem klasycznych CV baseline'ów
+na mieszanych daniach rzeczywistych.
+
+Trend: \emph{nie polegać na ``pamięci'' VLM co do kcal}, tylko
+rozpoznawać składniki/gramy i czytać bazę.
+
+%% =====================================================================
+\section{Modele na Hugging Face --- przegląd praktyczny}
+%% =====================================================================
+
+Poniżej modele bezpośrednio przydatne do projektu (stan na październik 2026).
+Liczby downloadów zmieniają się szybko --- ważniejsza jest jakość karty modelu
+i zgodność z Nutrition5k / makro.
+
+\subsection{Estymacja kalorii / makro (priorytet tematyczny)}
+
+\begin{longtable}{@{}p{4.4cm}p{2.6cm}p{7.2cm}@{}}
+\toprule
+\textbf{Model (HF)} & \textbf{Typ} & \textbf{Komentarz} \\
+\midrule
+\endhead
+\texttt{opencal/opencal-base} & VLM (ONNX) &
+  Fine-tune LFM2.5-VL-450M; JSON składników z gramami + kcal/makro (USDA);
+  działa w przeglądarce (transformers.js / WebGPU). \\
+\texttt{jc-builds/CalorieCLIP} & CLIP + regresja &
+  MAE $\sim$51{,}4\,kcal; lokalnie, $<$50\,ms; tylko kalorie (nie pełne makro);
+  lepszy od GPT-4o/Claude w ich teście. \\
+\texttt{aman24012/nutrivision-om-igsm} & CNN/hybryda &
+  5 wyjść: cal, mass, fat, carb, prot; mean PMAE $\sim$13{,}5\% na Nutrition5k. \\
+\texttt{arunapb/nutriingredientnet-v5} & RGB(+depth pred.) &
+  Per-składnik + makro; MAE kcal $\sim$79{,}7; wymaga geometrii zbliżonej
+  do overhead Nutrition5k. \\
+\texttt{Doses-AI/boba-0.8b-food-GGUF} & mały VLM &
+  Qwen3.5-0.8B LoRA; JSON per-składnik; MAE kcal $\sim$112; on-device (GGUF). \\
+\texttt{ardaocak/llava-1.5-7b-food-calorie-estimator} & LLaVA &
+  Estymacja kalorii w stylu VQA; cięższy, wymaga GPU. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Klasyfikacja potraw (baseline / pipeline A)}
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{onnx-community/swin-finetuned-food101-ONNX} --- popularny Swin na Food-101;
+  \item \texttt{prithivMLmods/Food-101-93M} --- ViT/klasyfikator Food-101;
+  \item \texttt{nateraw/vit-base-food101} --- klasyczny ViT-B na Food-101;
+  \item \texttt{Kaludi/food-category-classification-v2.0} --- szersze kategorie żywności.
+\end{itemize}
+Te modele \textbf{nie} przewidują makro bezpośrednio --- trzeba dociągnąć
+bazę odżywczą i model porcji.
+
+\subsection{Modele tekstowe / pomocnicze}
+Na HF jest też sporo LoRA do LLM (SmolLM2, Phi-4, Llama-3, Gemma)
+uczących się mapować opis jedzenia $\rightarrow$ wartości odżywcze
+(np.\ rodzina \texttt{punkt2/foodcalculator-nutrition-*}).
+Przydatne, gdy najpierw VLM opisze talerz tekstem.
+
+\subsection{Jak szybko zacząć na HF}
+\begin{enumerate}[leftmargin=*]
+  \item Demo / Space: CalorieCLIP lub NutriVision (jeśli dostępny Space).
+  \item Lokalnie: \texttt{transformers} + \texttt{opencal-base} (ONNX)
+        albo własna głowica regresji na ViT/ResNet pretrained.
+  \item Trening: Nutrition5k subset + multitask MSE/Huber na 5 wyjściach.
+\end{enumerate}
+
+%% =====================================================================
+\section{Rozwiązania komercyjne i produktowe}
+%% =====================================================================
+
+Rynek aplikacji ``zrób zdjęcie posiłku'' jest dojrzały produktowo,
+ale dokładność bywa mocno marketingowa.
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{MyFitnessPal} --- ogromna baza produktów; Meal Scan (AI photo)
+        jako dodatek do klasycznego logowania / kodów kreskowych.
+  \item \textbf{Foodvisor} --- rozpoznawanie ze zdjęcia + makro/mikro;
+        mocna pozycja w Europie.
+  \item \textbf{SnapCalorie / Cal AI / podobne} --- photo-first calorie trackery;
+        niezależne benchmarki 2026 pokazują dużą rozpiętość MAPE między aplikacjami;
+        dania mieszane są najtrudniejsze.
+  \item \textbf{Cronometer / MacroFactor} --- często wygrywają dokładnością
+        przy workflow manual + barcode (nie czyste photo-AI).
+\end{itemize}
+
+Wniosek: aplikacje konsumenckie łączą CV z ogromnymi bazami i UX
+(korekta użytkownika). Sam model ze zdjęcia rzadko jest wystarczająco
+dokładny bez weryfikacji.
+
+%% =====================================================================
+\section{Metryki ewaluacji}
+%% =====================================================================
+
+Standardowo raportuje się osobno dla kalorii, masy i każdego makro:
+\begin{itemize}[leftmargin=*]
+  \item MAE / RMSE (jednostki bezwzględne: kcal, g),
+  \item MAPE / PMAE (błąd względny w \%),
+  \item czasem korelację Pearsona / Bland--Altman.
+\end{itemize}
+Przy multitasku warto podawać też średnią po 5 celach
+oraz unikać porównań między papierami bez tego samego splitu
+i tej samej curation etykiet.
+
+%% =====================================================================
+\section{Wyzwania i ograniczenia}
+%% =====================================================================
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Porcja z 2D} --- największe źródło błędu; depth / referencja
+        (karta kredytowa, sztućce) pomaga.
+  \item \textbf{Domain shift} --- model z kantyny Google $\neq$ domowa kuchnia polska.
+  \item \textbf{Dania złożone} --- sałatki, dania jajeczne, śniadania zachodnie
+        są systematycznie trudne.
+  \item \textbf{Gęste kalorycznie, małe objętościowo} --- orzechy, oleje:
+        modele często niedoszacowują.
+  \item \textbf{Baza odżywcza} --- zmiana USDA $\leftrightarrow$ krajowe tabele
+        zmienia ground truth.
+  \item \textbf{VLM mode collapse} --- lokalne VLM bywają gorsze od małej
+        regresji CLIP (jak w CalorieCLIP).
+\end{enumerate}
+
+%% =====================================================================
+\section{Propozycja realizacji projektu (dla grupy)}
+%% =====================================================================
+
+Cel projektu: system przyjmujący zdjęcie posiłku i zwracający
+szacunki \textbf{kalorii + białka + tłuszczu + węglowodanów}
+(opcjonalnie masa).
+
+\subsection{MVP (realistyczny zakres proseminarium)}
+\begin{enumerate}[leftmargin=*]
+  \item Baseline klasyfikacji Food-101 (gotowy model HF) + prosta tabela kcal/makro.
+  \item Regresja multitask na (subsecie) Nutrition5k:
+        backbone ViT-B/16 lub ResNet-50 + 5 głowic.
+  \item Porównanie z gotowym modelem HF (CalorieCLIP na kcal;
+        NutriVision / OpenCal na makro jeśli uda się odpalić).
+  \item Prosty interfejs: notebook lub mała aplikacja (Streamlit / Gradio).
+  \item Raport błędów + analiza fal (np.\ dania jedno- vs wieloskładnikowe).
+\end{enumerate}
+
+\subsection{Rozszerzenia (jeśli zostanie czas)}
+\begin{itemize}[leftmargin=*]
+  \item estymacja depth z RGB i fusion kanałów;
+  \item segmentacja jedzenia vs tło;
+  \item VLM + RAG do USDA / Open Food Facts;
+  \item test na własnych zdjęciach kuchni polskiej + ręczna annotacja.
+\end{itemize}
+
+\subsection{Stack technologiczny (propozycja)}
+Python, PyTorch, Hugging Face \texttt{transformers} / \texttt{timm},
+opcjonalnie ONNX Runtime, Gradio; metryki: MAE, MAPE.
+
+%% =====================================================================
+\section{Podsumowanie}
+%% =====================================================================
+
+Estymacja makroskładników ze zdjęcia to aktywna dziedzina na styku
+computer vision i nutrition informatics. Najważniejszy naukowy grunt
+to \textbf{Nutrition5k} i regresja multitask (CNN/ViT).
+Na Hugging Face dostępne są zarówno lekkie regresory (CalorieCLIP),
+jak i VLM produkujące JSON ze składnikami i makro (OpenCal, Boba).
+Komercyjnie dominują aplikacje łączące photo-AI z bazami i korektą użytkownika.
+
+Dla grupy Dąbrowski--Zabielski najbardziej sensowna ścieżka to:
+\textbf{Nutrition5k + ViT/ResNet multitask} jako rdzeń naukowy,
+plus \textbf{porównanie z 1--2 modelami z Hugging Face} i krótkim demo.
+
+%% =====================================================================
+\section*{Wybrane źródła i linki}
+\addcontentsline{toc}{section}{Wybrane źródła i linki}
+%% =====================================================================
+
+\begin{enumerate}[leftmargin=*,itemsep=0.35em]
+  \item Thames i~in., \emph{Nutrition5k: Towards Automatic Nutritional Understanding of Generic Food}, CVPR 2021.
+        \url{https://github.com/google-research-datasets/Nutrition5k}
+  \item NutritionVerse-Direct (2024): \url{https://arxiv.org/abs/2405.07814}
+  \item 2D Prediction\ldots Beyond Nutrition5k, \emph{Nutrients} 2025:
+        \url{https://doi.org/10.3390/nu17132196}
+  \item Swin Transformer nutritional composition, \emph{Frontiers in Nutrition} 2024:
+        \url{https://doi.org/10.3389/fnut.2024.1454466}
+  \item DietAI24, \emph{Communications Medicine} 2025:
+        \url{https://doi.org/10.1038/s43856-025-01159-0}
+  \item HF: \url{https://huggingface.co/opencal/opencal-base}
+  \item HF: \url{https://huggingface.co/jc-builds/CalorieCLIP}
+  \item HF: \url{https://huggingface.co/aman24012/nutrivision-om-igsm}
+  \item HF: \url{https://huggingface.co/arunapb/nutriingredientnet-v5}
+  \item HF: \url{https://huggingface.co/Doses-AI/boba-0.8b-food-GGUF}
+  \item USDA FoodData Central: \url{https://fdc.nal.usda.gov/}
+\end{enumerate}
+
+\vspace{1.5em}
+\noindent\textit{Dokument roboczy na potrzeby PROseminarium.
+Liczby downloadów i karty modeli na Hugging Face należy weryfikować
+na bieżąco przed finalną prezentacją.}
+
+\end{document}
