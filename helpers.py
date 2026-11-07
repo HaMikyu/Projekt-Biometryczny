@@ -97,7 +97,7 @@ def denormalize_imagenet(img):
 
 def show_batch_images(images, targets, dish_ids, n=4):
     n = min(n, images.shape[0])
-    fig, axes = plt.subplots(1, n, figsize=(4 * n, 4))
+    fig, axes = plt.subplots(1, n, figsize=(4 * n, 4.8))
     if n == 1:
         axes = [axes]
     for i in range(n):
@@ -108,7 +108,8 @@ def show_batch_images(images, targets, dish_ids, n=4):
         title = f"{dish_ids[i]}\nfat={t[0]:.1f} carb={t[1]:.1f} prot={t[2]:.1f}"
         if t.numel() > 3:
             title += f" mass={t[3]:.1f}"
-        axes[i].set_title(title, fontsize=9)
+        axes[i].set_title(title, fontsize=9, pad=18)
         axes[i].axis("off")
-    plt.tight_layout()
+    plt.tight_layout(pad=2.0, rect=[0, 0, 1, 0.92])
+    fig.subplots_adjust(top=0.78)
     plt.show()
