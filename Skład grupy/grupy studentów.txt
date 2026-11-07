@@ -4,3 +4,4 @@ Temat: Analiza podatności i metody detekcji fałszerstw linii papilarnych
 Bartosz Siemaszkiewicz - Fałszowanie odcisków palców, ja solo robie
 Skład grupy: Adam Rogowski, Szymon Sawoń
 Temat: Wykrywanie wideo modyfikowanych przez AI
+Kacper Hącia + Kamil Gniazdowski - rozpoznawanie dźwięków wygenerowanych przez ai
