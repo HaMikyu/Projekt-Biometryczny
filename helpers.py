@@ -70,22 +70,60 @@ def find_overhead_image(images_root, dish_id):
     return None
 
 
+def find_overhead_depth(images_root, dish_id):
+    base = Path(images_root) / dish_id
+    candidates = [
+        base / "depth_raw.png",
+        base / "depth.png",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return str(c)
+    return None
+
+
+def ensure_val_split(dish_ids_dir, train_path, val_path, ratio=0.1):
+    if os.path.isfile(val_path) and os.path.getsize(val_path) > 0:
+        train_ids = load_split_ids(train_path)
+        val_ids = load_split_ids(val_path)
+        if len(val_ids) >= 20 and len(train_ids) > len(val_ids):
+            return
+    train_ids = load_split_ids(train_path)
+    if not train_ids:
+        return
+    n_val = max(1, int(len(train_ids) * ratio))
+    val_ids = train_ids[-n_val:]
+    keep_train = train_ids[:-n_val]
+    with open(train_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(keep_train) + "\n")
+    with open(val_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(val_ids) + "\n")
+
+
 def resolve_split_map(dish_ids_dir):
-    split_map = {
-        "train": os.path.join(dish_ids_dir, "train_ids.txt"),
-        "val": os.path.join(dish_ids_dir, "val_ids.txt"),
-        "test": os.path.join(dish_ids_dir, "test_ids.txt"),
-    }
-    if os.path.isfile(split_map["train"]):
-        return split_map
-    alt = {
-        "train": os.path.join(dish_ids_dir, "overhead_train_ids.txt"),
-        "val": os.path.join(dish_ids_dir, "overhead_val_ids.txt"),
-        "test": os.path.join(dish_ids_dir, "overhead_test_ids.txt"),
-    }
-    if os.path.isfile(alt["train"]):
-        return alt
-    return split_map
+    rgb_train = os.path.join(dish_ids_dir, "rgb_train_ids.txt")
+    rgb_test = os.path.join(dish_ids_dir, "rgb_test_ids.txt")
+    rgb_val = os.path.join(dish_ids_dir, "rgb_val_ids.txt")
+    if os.path.isfile(rgb_train) and os.path.isfile(rgb_test):
+        ensure_val_split(dish_ids_dir, rgb_train, rgb_val)
+        return {"train": rgb_train, "val": rgb_val, "test": rgb_test}
+
+    candidates = [
+        {
+            "train": os.path.join(dish_ids_dir, "train_ids.txt"),
+            "val": os.path.join(dish_ids_dir, "val_ids.txt"),
+            "test": os.path.join(dish_ids_dir, "test_ids.txt"),
+        },
+        {
+            "train": os.path.join(dish_ids_dir, "overhead_train_ids.txt"),
+            "val": os.path.join(dish_ids_dir, "overhead_val_ids.txt"),
+            "test": os.path.join(dish_ids_dir, "overhead_test_ids.txt"),
+        },
+    ]
+    for split_map in candidates:
+        if os.path.isfile(split_map["train"]):
+            return split_map
+    return candidates[0]
 
 
 def denormalize_imagenet(img):

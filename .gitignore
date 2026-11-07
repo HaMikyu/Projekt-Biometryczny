@@ -1,20 +1,23 @@
-# LaTeX build artifacts
-*.aux
-*.log
-*.out
-*.toc
-*.synctex.gz
-*.fls
-*.fdb_latexmk
-*.bbl
-*.blg
-*.nav
-*.snm
-*.vrb
-
 # OS / editor
 .DS_Store
 Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Dane i artefakty treningu
+data/
+*.pt
+*.pth
+*.ckpt
+lightning_logs/
+outputs/
+checkpoints/
