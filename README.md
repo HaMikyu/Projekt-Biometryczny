@@ -1,6 +1,6 @@
 # Projekt biometryczny – Nutrition5k
 
-Michał Dąbrowski, Dominik Zabielski
+Michał Dąbrowski, Dominik Zabielski, Jakub Jaromski
 
 ## Setup
 
