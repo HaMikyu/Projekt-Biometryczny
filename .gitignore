@@ -13,11 +13,20 @@ __pycache__/
 venv/
 env/
 
-# Dane i artefakty treningu
+# Dane Nutrition5k (za duze na git)
 data/
+
+# Wagi / checkpointy treningu
 *.pt
 *.pth
 *.ckpt
+*.part
 lightning_logs/
 outputs/
 checkpoints/
+train/runs/
+
+# Tylko wyeksportowane besty konfiguracji
+!train/best/
+!train/best/.gitkeep
+!train/best/*.pt

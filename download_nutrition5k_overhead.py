@@ -1,8 +1,11 @@
+import argparse
 import json
 import os
+import threading
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "nutrition5k"
@@ -39,7 +42,7 @@ def download(obj, dest, retries=5):
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.is_file() and dest.stat().st_size > 0:
         return False
-    tmp = dest.with_suffix(dest.suffix + ".part")
+    tmp = dest.with_suffix(dest.suffix + f".{os.getpid()}.{threading.get_ident()}.part")
     err = None
     for i in range(retries):
         try:
@@ -49,6 +52,21 @@ def download(obj, dest, retries=5):
                 except OSError:
                     pass
             urllib.request.urlretrieve(BASE + obj, tmp)
+            if dest.is_file() and dest.stat().st_size > 0:
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+                return False
+            if (not tmp.is_file()) or tmp.stat().st_size <= 0:
+                raise IOError(f"empty download: {obj}")
+            if dest.suffix.lower() == ".png":
+                from PIL import Image
+
+                with Image.open(tmp) as im:
+                    im.verify()
+                with Image.open(tmp) as im:
+                    im.load()
             os.replace(tmp, dest)
             return True
         except Exception as e:
@@ -58,6 +76,10 @@ def download(obj, dest, retries=5):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--workers", type=int, default=32)
+    args = parser.parse_args()
+
     print("Pobieram metadata i splity (tylko brakujace)...")
     for obj in EXTRA:
         name = Path(obj).name
@@ -79,19 +101,43 @@ def main():
 
     total = len(files)
     gb = sum(s for _, _, s in files) / (1024 ** 3)
+    todo = [(o, d, s) for o, d, s in files if not (d.is_file() and d.stat().st_size > 0)]
+    skip = total - len(todo)
     print(f"Plikow w bazie: {total} (~{gb:.2f} GB)")
-    print("Pobieram brakujace...")
+    print(f"Do pobrania: {len(todo)}, juz jest: {skip}")
+    print(f"Pobieram rownolegle (workers={args.workers})...")
 
     nowe = 0
-    skip = 0
-    for i, (obj, dest, _) in enumerate(files, 1):
-        if dest.is_file() and dest.stat().st_size > 0:
-            skip += 1
-        else:
-            download(obj, dest)
-            nowe += 1
-        if i % 100 == 0 or i == total:
-            print(f"  {i}/{total} (nowe: {nowe}, skip: {skip})")
+    done = 0
+    lock = threading.Lock()
+    errors = []
+
+    def job(item):
+        obj, dest, _ = item
+        return download(obj, dest)
+
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {pool.submit(job, item): item for item in todo}
+        for fut in as_completed(futures):
+            try:
+                created = fut.result()
+            except Exception as e:
+                created = False
+                errors.append((futures[fut][0], str(e)))
+            with lock:
+                done += 1
+                if created:
+                    nowe += 1
+                if done % 100 == 0 or done == len(todo):
+                    print(
+                        f"  {done}/{len(todo)} (nowe: {nowe}, skip_start: {skip}, bledy: {len(errors)})"
+                    )
+
+    if errors:
+        print(f"Bledy ({len(errors)}), przyklad:")
+        for obj, msg in errors[:5]:
+            print(f"  {obj}: {msg}")
+        print("Odpal ponownie — dociagnie brakujace.")
 
     dishes = [d for d in images.iterdir() if d.is_dir()] if images.is_dir() else []
     both = sum(

@@ -82,6 +82,22 @@ def find_overhead_depth(images_root, dish_id):
     return None
 
 
+def is_readable_image(path):
+    try:
+        p = Path(path)
+        if (not p.is_file()) or p.stat().st_size <= 0:
+            return False
+        from PIL import Image
+
+        with Image.open(p) as im:
+            im.verify()
+        with Image.open(p) as im:
+            im.load()
+        return True
+    except Exception:
+        return False
+
+
 def ensure_val_split(dish_ids_dir, train_path, val_path, ratio=0.1):
     if os.path.isfile(val_path) and os.path.getsize(val_path) > 0:
         train_ids = load_split_ids(train_path)

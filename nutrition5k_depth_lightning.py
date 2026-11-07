@@ -9,7 +9,13 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import functional as TF
 
-from helpers import find_overhead_depth, find_overhead_image, load_split_ids, resolve_split_map
+from helpers import (
+    find_overhead_depth,
+    find_overhead_image,
+    is_readable_image,
+    load_split_ids,
+    resolve_split_map,
+)
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "nutrition5k"
 BATCH_SIZE = 16
@@ -71,6 +77,8 @@ class Nutrition5kDepthDataModule(L.LightningDataModule):
             img = find_overhead_image(images_root, dish_id)
             depth = find_overhead_depth(images_root, dish_id)
             if img is None or depth is None:
+                continue
+            if not is_readable_image(img) or not is_readable_image(depth):
                 continue
             samples.append(
                 {

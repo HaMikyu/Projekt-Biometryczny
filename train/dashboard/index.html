@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nutrition5k · Centrum dowodzenia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f3efe6;
+      --ink: #14201b;
+      --muted: #5d6b63;
+      --line: #cfc6b4;
+      --panel: rgba(255, 252, 245, 0.86);
+      --done: #1f7a4c;
+      --train: #c45d16;
+      --queue: #6b7280;
+      --stall: #9a3412;
+      --accent: #0f766e;
+      --glow: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #ffe7b8 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #b7efe4 0%, transparent 50%),
+        linear-gradient(180deg, #f7f2e8 0%, #ebe4d6 100%);
+    }
+    .wrap {
+      width: min(1400px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 1.4rem 0 3rem;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 1.2rem;
+      align-items: end;
+      margin-bottom: 1.2rem;
+    }
+    h1 {
+      font-family: Syne, sans-serif;
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      line-height: 0.95;
+      margin: 0;
+      letter-spacing: -0.03em;
+    }
+    .tag {
+      display: inline-block;
+      margin-top: 0.55rem;
+      padding: 0.25rem 0.55rem;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.55rem;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 0.75rem 0.8rem;
+      backdrop-filter: blur(8px);
+    }
+    .stat b {
+      display: block;
+      font-family: Syne, sans-serif;
+      font-size: 1.55rem;
+      line-height: 1;
+    }
+    .stat span { color: var(--muted); font-size: 0.75rem; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.05fr 1.2fr;
+      gap: 1rem;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+    .panel h2 {
+      font-family: Syne, sans-serif;
+      font-size: 1.05rem;
+      margin: 0;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--line);
+      letter-spacing: -0.02em;
+    }
+    .jobs { padding: 0.4rem; max-height: 72vh; overflow: auto; }
+    .job {
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      gap: 0.7rem;
+      align-items: center;
+      padding: 0.7rem 0.75rem;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .job:hover, .job.active {
+      background: rgba(15, 118, 110, 0.08);
+      border-color: rgba(15, 118, 110, 0.25);
+    }
+    .num {
+      font-family: Syne, sans-serif;
+      font-weight: 800;
+      font-size: 1.35rem;
+      color: var(--accent);
+    }
+    .title { font-weight: 600; font-size: 0.86rem; }
+    .sub { color: var(--muted); font-size: 0.72rem; margin-top: 0.15rem; }
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.28rem 0.45rem;
+      border: 1px solid currentColor;
+      white-space: nowrap;
+    }
+    .badge.done { color: var(--done); }
+    .badge.training { color: var(--train); animation: pulse 1.2s ease-in-out infinite; }
+    .badge.queued { color: var(--queue); }
+    .badge.stalled { color: var(--stall); }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    .bar {
+      grid-column: 2 / 4;
+      height: 5px;
+      background: #e7dfd0;
+      margin-top: 0.15rem;
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--glow));
+      width: 0%;
+      transition: width 0.35s ease;
+    }
+    .meta {
+      grid-column: 2 / 4;
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin-top: 0.25rem;
+      color: var(--muted);
+      font-size: 0.7rem;
+    }
+    .detail { min-height: 72vh; display: flex; flex-direction: column; }
+    .detail-body { padding: 1rem; display: grid; gap: 0.9rem; flex: 1; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+    }
+    .kpi {
+      border: 1px solid var(--line);
+      padding: 0.65rem 0.7rem;
+      background: rgba(255,255,255,0.45);
+    }
+    .kpi em { display: block; color: var(--muted); font-style: normal; font-size: 0.68rem; }
+    .kpi strong { font-family: Syne, sans-serif; font-size: 1.25rem; }
+    .chart-wrap {
+      border: 1px solid var(--line);
+      padding: 0.7rem;
+      background: rgba(255,255,255,0.5);
+      min-height: 320px;
+    }
+    .hint { color: var(--muted); font-size: 0.75rem; }
+    footer {
+      margin-top: 0.9rem;
+      color: var(--muted);
+      font-size: 0.72rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 980px) {
+      header, .layout, .summary, .kpis { grid-template-columns: 1fr 1fr; }
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Centrum<br/>dowodzenia</h1>
+        <div class="tag">Nutrition5k · DINOv3 · live training board</div>
+      </div>
+      <div class="summary" id="summary"></div>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <h2>Kolejka eksperymentów</h2>
+        <div class="jobs" id="jobs"></div>
+      </section>
+
+      <section class="panel detail">
+        <h2 id="detailTitle">Podgląd</h2>
+        <div class="detail-body">
+          <div class="kpis" id="kpis"></div>
+          <div class="chart-wrap">
+            <canvas id="chart"></canvas>
+          </div>
+          <div class="hint" id="hint">Wybierz job z listy. Odświeżanie co 2 s.</div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <div>API: <code>/api/status</code></div>
+      <div id="clock">—</div>
+    </footer>
+  </div>
+
+  <script>
+    const statusLabel = {
+      done: "wytrenowane",
+      training: "trenuje się",
+      queued: "w kolejce",
+      stalled: "zatrzymane",
+    };
+
+    const palette = [
+      "#0f766e", "#c45d16", "#1d4ed8", "#be123c", "#7c3aed",
+      "#047857", "#b45309", "#0369a1", "#9f1239", "#4c1d95",
+    ];
+
+    let selectedId = 0;
+    let chart;
+
+    function fmt(v, digits = 4) {
+      if (v === null || v === undefined || Number.isNaN(v)) return "—";
+      return Number(v).toFixed(digits);
+    }
+
+    function buildChart() {
+      const ctx = document.getElementById("chart");
+      chart = new Chart(ctx, {
+        type: "line",
+        data: { labels: [], datasets: [] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "nearest", intersect: false },
+          plugins: {
+            legend: { labels: { font: { family: "IBM Plex Mono", size: 11 } } },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "epoch" },
+              ticks: { font: { family: "IBM Plex Mono", size: 10 } },
+            },
+            y: {
+              title: { display: true, text: "MAE makro [g]" },
+              position: "left",
+              ticks: { font: { family: "IBM Plex Mono", size: 10 } },
+            },
+            yDepth: {
+              title: { display: true, text: "MAE depth [0-1]" },
+              position: "right",
+              grid: { drawOnChartArea: false },
+              ticks: { font: { family: "IBM Plex Mono", size: 10 } },
+            },
+          },
+        },
+      });
+      ctx.parentElement.style.height = "360px";
+    }
+
+    function seriesByEpoch(metrics, key) {
+      const map = new Map();
+      if (!metrics) return { labels: [], values: [] };
+      const epochs = metrics.series.epoch;
+      const vals = metrics.series[key] || [];
+      epochs.forEach((e, i) => {
+        if (e === null || e === undefined) return;
+        const v = vals[i];
+        if (v === null || v === undefined) return;
+        map.set(e, v);
+      });
+      const labels = [...map.keys()].sort((a, b) => a - b);
+      return { labels, values: labels.map((e) => map.get(e)) };
+    }
+
+    function renderSummary(data) {
+      document.getElementById("summary").innerHTML = `
+        <div class="stat"><b>${data.done}/${data.total}</b><span>ukończone</span></div>
+        <div class="stat"><b>${data.training}</b><span>trwa teraz</span></div>
+        <div class="stat"><b>${data.queued}</b><span>w kolejce</span></div>
+        <div class="stat"><b>${Math.round((data.done / data.total) * 100)}%</b><span>postęp siatki</span></div>
+      `;
+    }
+
+    function allJob(data) {
+      const started = data.jobs.filter((j) => j.metrics);
+      const live = data.jobs.find((j) => j.status === "training");
+      const bestMacros = data.jobs
+        .filter((j) => j.kind === "macros" && j.metrics?.best_val_mae != null)
+        .sort((a, b) => a.metrics.best_val_mae - b.metrics.best_val_mae)[0];
+      const pct = data.total ? data.done / data.total : 0;
+      let status = "queued";
+      if (live) status = "training";
+      else if (data.done === data.total) status = "done";
+      else if (started.length) status = "stalled";
+      return {
+        id: 0,
+        title: "Wszystkie",
+        subtitle: "overlay val_mae · porównanie całej siatki",
+        kind: "all",
+        max_epochs: Math.max(...data.jobs.map((j) => j.max_epochs)),
+        status,
+        progress: pct,
+        metrics: null,
+        best_size_mb: null,
+        bestMacros,
+        started: started.length,
+      };
+    }
+
+    function renderJobs(data) {
+      const root = document.getElementById("jobs");
+      const zero = allJob(data);
+      const list = [zero, ...data.jobs];
+      root.innerHTML = list.map((j) => {
+        const active = j.id === selectedId ? "active" : "";
+        const pct = Math.round((j.progress || 0) * 100);
+        const mae = j.id === 0
+          ? (j.bestMacros?.metrics?.best_val_mae ?? null)
+          : (j.metrics?.best_val_mae ?? j.metrics?.last_val_mae);
+        const epochTxt = j.id === 0
+          ? `${data.done}/${data.total} gotowe`
+          : `epoka ${j.metrics?.last_epoch ?? "—"}/${j.max_epochs}`;
+        const maeTxt = j.id === 0
+          ? `best makro ${fmt(mae, 3)}`
+          : `best val_mae ${fmt(mae, j.kind === "macros" ? 3 : 4)}`;
+        return `
+          <div class="job ${active}" data-id="${j.id}">
+            <div class="num">${j.id}</div>
+            <div>
+              <div class="title">${j.title}</div>
+              <div class="sub">${j.subtitle}</div>
+            </div>
+            <div class="badge ${j.status}">${statusLabel[j.status]}</div>
+            <div class="bar"><i style="width:${pct}%"></i></div>
+            <div class="meta">
+              <span>${epochTxt}</span>
+              <span>${maeTxt}</span>
+              ${j.best_size_mb ? `<span>wagi ${j.best_size_mb} MB</span>` : ""}
+              ${j.id === 0 && j.bestMacros ? `<span>lider #${j.bestMacros.id}</span>` : ""}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      root.querySelectorAll(".job").forEach((el) => {
+        el.addEventListener("click", () => {
+          selectedId = Number(el.dataset.id);
+          refresh();
+        });
+      });
+    }
+
+    function setSingleDatasets(val, train, labels) {
+      chart.data.labels = labels;
+      chart.data.datasets = [
+        {
+          label: "val_mae",
+          data: labels.map((e) => {
+            const i = val.labels.indexOf(e);
+            return i >= 0 ? val.values[i] : null;
+          }),
+          borderColor: "#0f766e",
+          backgroundColor: "rgba(15,118,110,0.12)",
+          tension: 0.25,
+          spanGaps: true,
+          pointRadius: 2,
+          yAxisID: "y",
+        },
+        {
+          label: "train_mae",
+          data: labels.map((e) => {
+            const i = train.labels.indexOf(e);
+            return i >= 0 ? train.values[i] : null;
+          }),
+          borderColor: "#c45d16",
+          backgroundColor: "rgba(196,93,22,0.08)",
+          tension: 0.25,
+          spanGaps: true,
+          pointRadius: 2,
+          yAxisID: "y",
+        },
+      ];
+      chart.options.scales.y.title.text = "MAE";
+      chart.options.scales.yDepth.display = false;
+    }
+
+    function setOverlayDatasets(data) {
+      const withMetrics = data.jobs.filter((j) => j.metrics);
+      let maxEpoch = 0;
+      withMetrics.forEach((j) => {
+        const s = seriesByEpoch(j.metrics, "val_mae");
+        if (s.labels.length) maxEpoch = Math.max(maxEpoch, ...s.labels);
+      });
+      const labels = Array.from({ length: maxEpoch + 1 }, (_, i) => i);
+      chart.data.labels = labels;
+      chart.data.datasets = withMetrics.map((j, idx) => {
+        const s = seriesByEpoch(j.metrics, "val_mae");
+        const color = palette[idx % palette.length];
+        const isDepth = j.kind === "depth";
+        return {
+          label: `#${j.id} ${j.title}`,
+          data: labels.map((e) => {
+            const i = s.labels.indexOf(e);
+            return i >= 0 ? s.values[i] : null;
+          }),
+          borderColor: color,
+          backgroundColor: "transparent",
+          borderDash: isDepth ? [6, 4] : undefined,
+          borderWidth: j.status === "training" ? 3 : 2,
+          tension: 0.25,
+          spanGaps: true,
+          pointRadius: j.status === "training" ? 3 : 1.5,
+          yAxisID: isDepth ? "yDepth" : "y",
+        };
+      });
+      chart.options.scales.y.display = true;
+      chart.options.scales.y.title.text = "MAE makro [g]";
+      chart.options.scales.yDepth.display = true;
+      chart.options.scales.yDepth.title.text = "MAE depth [0-1]";
+    }
+
+    function renderDetail(data) {
+      if (selectedId === 0) {
+        const zero = allJob(data);
+        document.getElementById("detailTitle").textContent = `#0 · Wszystkie`;
+        document.getElementById("kpis").innerHTML = `
+          <div class="kpi"><em>status siatki</em><strong>${statusLabel[zero.status]}</strong></div>
+          <div class="kpi"><em>ukończone</em><strong>${data.done}/${data.total}</strong></div>
+          <div class="kpi"><em>aktywne krzywe</em><strong>${zero.started}</strong></div>
+          <div class="kpi"><em>lider makro</em><strong>${zero.bestMacros ? `#${zero.bestMacros.id} · ${fmt(zero.bestMacros.metrics.best_val_mae, 3)}` : "—"}</strong></div>
+        `;
+        setOverlayDatasets(data);
+        chart.update("none");
+        document.getElementById("hint").textContent =
+          "Overlay val_mae wszystkich jobów. Depth na prawej osi (inna skala), makra na lewej.";
+        document.getElementById("clock").textContent =
+          `update ${new Date(data.server_time * 1000).toLocaleTimeString("pl-PL")}`;
+        return;
+      }
+
+      const job = data.jobs.find((j) => j.id === selectedId) || data.jobs[0];
+      document.getElementById("detailTitle").textContent = `#${job.id} · ${job.title}`;
+      const m = job.metrics;
+      document.getElementById("kpis").innerHTML = `
+        <div class="kpi"><em>status</em><strong>${statusLabel[job.status]}</strong></div>
+        <div class="kpi"><em>best val_mae</em><strong>${fmt(m?.best_val_mae, job.kind === "macros" ? 3 : 4)}</strong></div>
+        <div class="kpi"><em>last train_mae</em><strong>${fmt(m?.last_train_mae, job.kind === "macros" ? 3 : 4)}</strong></div>
+        <div class="kpi"><em>epoka</em><strong>${m?.last_epoch ?? "—"} / ${job.max_epochs}</strong></div>
+      `;
+
+      const val = seriesByEpoch(m, "val_mae");
+      const train = seriesByEpoch(m, "train_mae");
+      const labels = val.labels.length ? val.labels : train.labels;
+      setSingleDatasets(val, train, labels);
+      if (job.kind === "depth") {
+        chart.data.datasets.forEach((d) => { d.yAxisID = "yDepth"; });
+        chart.options.scales.y.display = false;
+        chart.options.scales.yDepth.display = true;
+        chart.options.scales.yDepth.title.text = "MAE depth [0-1]";
+      } else {
+        chart.options.scales.y.display = true;
+        chart.options.scales.yDepth.display = false;
+        chart.options.scales.y.title.text = "MAE [g]";
+      }
+      chart.update("none");
+
+      let extra = "";
+      if (m?.series?.val_mae_fat?.some((x) => x != null)) {
+        const last = (arr) => [...arr].reverse().find((x) => x != null);
+        extra = ` · fat ${fmt(last(m.series.val_mae_fat), 2)} · carb ${fmt(last(m.series.val_mae_carb), 2)} · protein ${fmt(last(m.series.val_mae_protein), 2)}`;
+      }
+      document.getElementById("hint").textContent =
+        job.status === "queued"
+          ? "Jeszcze w kolejce — wykres pojawi się po starcie."
+          : `Live z metrics.csv${extra}`;
+      document.getElementById("clock").textContent =
+        `update ${new Date(data.server_time * 1000).toLocaleTimeString("pl-PL")}`;
+    }
+
+    async function refresh() {
+      const res = await fetch("/api/status", { cache: "no-store" });
+      const data = await res.json();
+      renderSummary(data);
+      renderJobs(data);
+      renderDetail(data);
+    }
+
+    buildChart();
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>
