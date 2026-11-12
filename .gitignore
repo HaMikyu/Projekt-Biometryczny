@@ -30,3 +30,6 @@ train/runs/
 !train/best/
 !train/best/.gitkeep
 !train/best/*.pt
+
+# Logi treningu
+*.log
