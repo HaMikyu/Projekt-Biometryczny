@@ -6,8 +6,8 @@ import lightning as L
 import torch
 import torch.nn.functional as F
 
-from train.dinov3_backbone import DEFAULT_MODEL_NAME, FrozenDinov3
-from train.heads import DepthEncoder, build_macros_head
+from baseline.dinov3_backbone import DEFAULT_MODEL_NAME, FrozenDinov3
+from baseline.heads import DepthEncoder, build_macros_head
 
 
 class MacrosLitModule(L.LightningModule):

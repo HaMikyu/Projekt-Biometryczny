@@ -4,8 +4,8 @@ import lightning as L
 import torch
 import torch.nn.functional as F
 
-from train.dinov3_backbone import DEFAULT_MODEL_NAME, FrozenDinov3
-from train.heads import DepthHead
+from baseline.dinov3_backbone import DEFAULT_MODEL_NAME, FrozenDinov3
+from baseline.heads import DepthHead
 
 
 class DepthLitModule(L.LightningModule):

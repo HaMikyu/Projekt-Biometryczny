@@ -24,12 +24,12 @@ data/
 lightning_logs/
 outputs/
 checkpoints/
-train/runs/
+runs/
 
 # Tylko wyeksportowane besty konfiguracji
-!train/best/
-!train/best/.gitkeep
-!train/best/*.pt
+!baseline/best/
+!baseline/best/.gitkeep
+!baseline/best/*.pt
 
 # Logi treningu
 *.log

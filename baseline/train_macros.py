@@ -11,11 +11,11 @@ if str(ROOT) not in sys.path:
 import lightning as L
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
-from train.dinov3_backbone import DEFAULT_MODEL_NAME, resolve_local_dino_dir
-from train.export_best import export_best_weights
-from train.macros_datamodule import Nutrition5kRgbDepthMacrosDataModule
-from train.macros_model import MacrosLitModule, infer_num_classes
-from train.paths import BEST_DIR, RUNS_DIR, config_name
+from baseline.dinov3_backbone import DEFAULT_MODEL_NAME, resolve_local_dino_dir
+from baseline.export_best import export_best_weights
+from nutrition5k.rgbd_macros_datamodule import Nutrition5kRgbDepthMacrosDataModule
+from baseline.macros_model import MacrosLitModule, infer_num_classes
+from baseline.paths import BEST_DIR, RUNS_DIR, config_name
 
 
 def parse_args():

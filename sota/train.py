@@ -1,8 +1,8 @@
 """Fast single-GPU fine-tuning of the RGB-D DINOv3 nutrition regressor.
 
-    python train/sota/build_cache.py            # once (~15 s)
-    python train/sota/train.py                  # train + test, ViT-B, 40 epochs
-    python train/sota/train.py --eval-only --ckpt train/runs/sota_vitb/best.pt
+    python sota/build_cache.py            # once (~15 s)
+    python sota/train.py                  # train + test, ViT-B, 40 epochs
+    python sota/train.py --eval-only --ckpt runs/sota_vitb/best.pt
 
 Everything after the cache lives in RAM; augmentation runs on the GPU, so the
 loop is bounded by the GPU, not by PNG decoding or Windows dataloader workers.
@@ -23,13 +23,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from train.sota.model import NutritionNet, param_groups  # noqa: E402
+from sota.model import NutritionNet, param_groups  # noqa: E402
 
 CACHE = ROOT / "data" / "nutrition5k" / "cache"
-RUNS = ROOT / "train" / "runs"
+RUNS = ROOT / "runs"
 NAMES = ["kcal", "mass", "fat", "carb", "protein"]
 # Nutrition5k paper (Thames et al., CVPR 2021), overhead RGB-D direct prediction, % MAE
 PAPER_RGBD_PCT = {"kcal": 18.8, "mass": 18.9, "fat": 18.1, "carb": 23.8, "protein": 20.9}
@@ -54,6 +54,7 @@ def parse_args():
     p.add_argument("--weight-decay", type=float, default=0.05)
     p.add_argument("--warmup-epochs", type=float, default=2.0)
     p.add_argument("--drop-path", type=float, default=0.1)
+    p.add_argument("--head-hidden", type=int, default=768)
     p.add_argument("--ema", type=float, default=0.999)
     p.add_argument("--consistency", type=float, default=0.1, help="weight of kcal ~ 9f+4c+4p loss")
     p.add_argument("--max-kcal", type=float, default=3000.0, help="drop label outliers from TRAIN only")
@@ -238,6 +239,16 @@ def mean_pct(m):
     return float(np.mean([m[n]["pct"] for n in NAMES]))
 
 
+def load_checkpoint(path):
+    ck = torch.load(path, map_location="cpu", weights_only=False)
+    sd = ck["model"]
+    if "head.0.weight" in sd:  # pre-refactor layout: head = LN, Linear, GELU, Dropout, Linear
+        remap = {"head.0.": "trunk.0.", "head.1.": "trunk.1.", "head.4.": "head."}
+        ck["model"] = {next((n + k[len(o):] for o, n in remap.items() if k.startswith(o)), k): v
+                       for k, v in sd.items()}
+    return ck
+
+
 # ----------------------------------------------------------------------------- main
 def main():
     args = parse_args()
@@ -249,6 +260,14 @@ def main():
     dev = torch.device("cuda")
 
     run_dir = RUNS / args.name
+    ck = None
+    if args.eval_only:  # model/data settings come from the checkpoint, not the CLI
+        ck = load_checkpoint(args.ckpt or run_dir / "best.pt")
+        for k in ("backbone", "cache_size", "input_size", "no_depth"):
+            if k in ck["args"]:
+                setattr(args, k, ck["args"][k])
+        args.ingr = "ingr.weight" in ck["model"]
+        args.head_hidden = ck["model"]["trunk.1.weight"].shape[0]
     run_dir.mkdir(parents=True, exist_ok=True)
     data = Data(args.cache_size)
 
@@ -266,7 +285,7 @@ def main():
 
     num_ingr = data.ingr.shape[1] if args.ingr else 0
     model = NutritionNet(args.backbone, drop_path=args.drop_path, use_depth=not args.no_depth,
-                         num_ingr=num_ingr).to(dev)
+                         num_ingr=num_ingr, head_hidden=args.head_hidden).to(dev)
     density = torch.tensor(data.density, device=dev)
     if args.grad_ckpt:
         model.set_grad_checkpointing(True)
@@ -286,7 +305,6 @@ def main():
             return torch.stack([direct, derived], 1)
 
     if args.eval_only:
-        ck = torch.load(args.ckpt or run_dir / "best.pt", map_location="cpu", weights_only=False)
         model.load_state_dict(ck["model"])
         y_mean.copy_(torch.tensor(ck["y_mean"]))
         y_std.copy_(torch.tensor(ck["y_std"]))

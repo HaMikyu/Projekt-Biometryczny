@@ -7,8 +7,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+ROOT = Path(__file__).resolve().parents[2]
 TRAIN_DIR = Path(__file__).resolve().parents[1]
-RUNS_DIR = TRAIN_DIR / "runs"
+RUNS_DIR = ROOT / "runs"
 BEST_DIR = TRAIN_DIR / "best"
 STATIC_DIR = Path(__file__).resolve().parent
 PORT = 8765

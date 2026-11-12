@@ -8,7 +8,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-DATA_DIR = Path(__file__).resolve().parent / "data" / "nutrition5k"
+DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "nutrition5k"
 API = "https://storage.googleapis.com/storage/v1/b/nutrition5k_dataset/o"
 BASE = "https://storage.googleapis.com/nutrition5k_dataset/"
 PREFIX = "nutrition5k_dataset/imagery/realsense_overhead/"

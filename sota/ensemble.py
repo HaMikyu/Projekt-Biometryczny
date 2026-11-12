@@ -1,6 +1,6 @@
 """Average saved test predictions of several runs.
 
-    python train/sota/ensemble.py sota_vitb sota_vitb_hr
+    python sota/ensemble.py sota_vitb sota_vitb_hr
 """
 import sys
 from pathlib import Path

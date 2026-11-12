@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TRAIN_DIR = Path(__file__).resolve().parent
 BEST_DIR = TRAIN_DIR / "best"
-RUNS_DIR = TRAIN_DIR / "runs"
+RUNS_DIR = ROOT / "runs"
 
 
 def ensure_sys_path() -> Path:

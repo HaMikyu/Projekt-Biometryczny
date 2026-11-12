@@ -19,10 +19,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from helpers import load_metadata, load_split_ids, resolve_split_map  # noqa: E402
+from nutrition5k.helpers import load_metadata, load_split_ids, resolve_split_map  # noqa: E402
 
 DATA_DIR = ROOT / "data" / "nutrition5k"
 TARGETS = ("calories", "total_mass", "total_fat", "total_carb", "total_protein")

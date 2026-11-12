@@ -73,6 +73,7 @@ class NutritionNet(nn.Module):
         pretrained: bool = True,
         use_depth: bool = True,
         num_ingr: int = 0,
+        head_hidden: int = 768,
     ):
         super().__init__()
         self.use_depth = use_depth
@@ -95,15 +96,15 @@ class NutritionNet(nn.Module):
         in_dim = dim * 3 + (64 if use_depth else 0)
         self.trunk = nn.Sequential(
             nn.LayerNorm(in_dim),
-            nn.Linear(in_dim, 768),
+            nn.Linear(in_dim, head_hidden),
             nn.GELU(),
             nn.Dropout(head_dropout),
         )
-        self.head = nn.Linear(768, num_outputs)
+        self.head = nn.Linear(head_hidden, num_outputs)
         # ingredient head: grams of every ingredient; totals = grams @ per-gram nutrient table
         self.num_ingr = num_ingr
         if num_ingr:
-            self.ingr = nn.Linear(768, num_ingr)
+            self.ingr = nn.Linear(head_hidden, num_ingr)
             nn.init.constant_(self.ingr.bias, -4.0)  # start near "absent"
 
     def set_grad_checkpointing(self, on: bool = True):
